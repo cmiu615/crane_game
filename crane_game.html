@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>クレーンゲーム</title>
+<script type = "importmap">
+    {
+       "imports":{
+            "three":"https://unpkg.com/three@0.160.1/build/three.module.js",
+            "three/addons/":"https://unpkg.com/three@0.160.1/examples/jsm/"
+        }
+    }
+</script>
+<script type = "module">
+let scene,renderer,camera;      //シーン、レンダラー、カメラ
+const [width,height] =[800,600];//画面サイズ
+let world,crane;                //物理ワールド、クレーン
+let arm = new Array(),claw = new Array();   //アーム、爪
+let status = "readyX",dir;      //ステータス、クレーンの移動方向
+//ブロックデータ
+let blocks = new Array();
+
+const data = [[-20,-20,10],[-10,-20,10],[0,-20,10],[10,-20,10],[20,-20,10],
+    [-20,-10,10],[-10,-10,10],[0,-10,10],[10,-10,10],[20,-10,10],
+    [-20,0,10],[-10,0,10],[0,0,10],[10,0,10],[20,0,10],
+    [-20,10,10],[-10,10,10],[0,10,10],
+    [-20,20,10],[-10,20,10],[0,20,10],
+];
+// 配列をシャッフルする関数（Fisher-Yatesアルゴリズム）
+function shuffleArray(data) {
+    for (let i = data.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [data[i], data[j]] = [data[j], data[i]]; // 要素を交換
+    }
+    return data;
+}
+
+// 配列をシャッフル
+const shuffledData = shuffleArray([...data]);
+
+//インポート
+import * as THREE from "three";
+import { OrbitControls} from "three/addons/controls/OrbitControls.js";
+import * as CANNON from "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm";
+
+
+window.onload = () => {
+    //シーン、レンダラー、カメラ、カメラコントロール、ライト
+    scene = new THREE.Scene();
+    renderer = new THREE.WebGLRenderer({antialias: true});
+    renderer.setSize(width,height);
+    document.getElementById("renderArea").appendChild(renderer.domElement);
+    camera = new THREE.PerspectiveCamera(50,width/height,1,200); //透視投影カメラ
+    camera.position.set(0,0,60);
+    const control = new OrbitControls(camera,renderer.domElement); //カメラコントロール
+    const light = new THREE.DirectionalLight("#FFFFFF",2); //白色、強さ2の平行光
+    light.position.set(-50,100,50);
+    const ambientLight = new THREE.AmbientLight("#FFFFE0"); //薄黄色の環境光
+    scene.add(light,ambientLight);
+    //物理ワールド、壁、床
+    world = new CANNON.World({gravity: new CANNON.Vec3(0,-20,0)});//物理ワールドを作成・重力の設定
+    createObject(-10,-20,0,40,11,60,"#FFFFFFFF");
+    createObject(20,-20,-10,20,11,40,"#FFFFFF");//直方体の床
+    createObject(0,5,-30.5,60,41,1,"#98fb98");//奥の壁を薄緑色の直方体として作成
+    createObject(-30.5,5,0,1,41,60,"#FFFFFF",0.1);
+    createObject(30.5,5,0,1,41,60,"#FFFFFF",0.1);
+    createObject(0,5,30.5,60,41,1,"#FFFFFF",0.1);//左右と手前の壁を半透明白色の直方体として作成
+    //クレーン
+    const geometry = new THREE.CylinderGeometry(1,1,7,32);//クレーンを円柱として作成
+    const material = new THREE.MeshPhongMaterial({color: "#C0C0C0"});//シルバーの材質を作成
+    crane = new THREE.Mesh(geometry,material);
+    crane.position.set(16,15,16);//クレーンの初期位置をセット
+    scene.add(crane);
+    for (let i=0; i<3; i++){
+        const x = -2 * Math.cos(Math.PI*2/3 * i);
+        const z = 2 * Math.sin(Math.PI*2/3 * i);//クレーンの腕は半径3の円周上に120度間隔で配置
+        arm[i] = createObject(x,-2,z,7,1,2,"#C0C0C0",1,0,crane);//腕はシルバーの直方体
+        arm[i].mesh.rotation.y = Math.PI*2/3*i;//腕のy軸を120度回転
+        claw[i] = createObject(-4,-3,0,7,1,2,"#C0C0C0",1,0,arm[i].mesh);//ツメはシルバーの直方体
+        claw[i].mesh.rotation.z = Math.PI/2;//ツメのz軸を90度回転（立てる）
+    }
+
+    //くまのぬいぐるみ
+    for (let i = 0; i < shuffledData.length/3; i++) {
+    const [x, z, w] = shuffledData[i];
+    const teddyBear = createTeddyBear(x, w / 2, z, 1.5); // createTeddyBear の返り値
+    blocks.push({ ...teddyBear, value: 'teddyBear' });
+    }
+
+    //うさぎのぬいぐるみ
+    for (let i = shuffledData.length/3; i < shuffledData.length*2/3; i++) {
+    const [x, z, w] = shuffledData[i];
+    const rabbit = createRabbit(x, w / 2, z, 1.5); // createRabbit の返り値
+    blocks.push({ ...rabbit, value: 'rabbit' });
+    }
+    
+    
+    //パンダのぬいぐるみ
+    for (let i = shuffledData.length*2/3; i < shuffledData.length; i++) {
+    const [x, z, w] = shuffledData[i];
+    const panda = createPanda(x, w / 2, z, 1.5); // createPanda の返り値
+    blocks.push({ ...panda, value: 'panda' });
+    }
+
+    //ボタンイベントの登録（クレーンの操作）
+    document.getElementById("moveX").addEventListener("mousedown",() => {//[1]ボタンを押したとき
+        if(status == "readyX") [status,dir] = ["move","x"];
+    });
+    document.getElementById("moveX").addEventListener("mouseup",() => {//[1]ボタンを放したとき
+        if((status == "move")&&(dir == "x")){//移動したなら
+            status = "readyZ";
+            document.getElementById("moveX").className = "blue";//[1]ボタンを灰水色にする
+            document.getElementById("moveZ").className = "red";//[2]ボタンをピンクにする
+        }
+    });
+    document.getElementById("moveZ").addEventListener("mousedown",() =>{//[2]ボタンを押したとき
+        if(status == "readyZ")[status,dir] = ["move","z"];
+    });
+    document.getElementById("moveZ").addEventListener("mouseup",() =>{//[2]ボタンを放したとき
+        if((status == "move")&&(dir == "z")){
+            status = "down";
+            document.getElementById("moveZ").className = "blue";//[2]ボタンを灰水色にする
+        }
+    });
+    update();
+}
+
+const createObject = (x,y,z,w,h,d,color,opacity=1,mass=0,parent=scene)=>{//座標(x,y,z)、サイズ(w×h×d)、色、透明度、重さ、親要素
+    //表示用オブジェクトの作成
+    const geometry = new THREE.BoxGeometry(w,h,d);//横幅w、高さh、奥行dの直方体を作成
+    const material = new THREE.MeshPhongMaterial({
+        color:color,opacity:opacity,transparent:true});//色と透明度を指定した材質を作成
+    const mesh = new THREE.Mesh(geometry,material);
+    mesh.position.set(x,y,z);
+    parent.add(mesh);//親要素（3Dオブジェクト）に追加
+    //物理用オブジェクトの作成
+    const body = new CANNON.Body({mass: mass});
+    body.addShape(new CANNON.Box(new CANNON.Vec3(w/2,h/1.25,d/2)));//重さmass、サイズw×h×dの直方体を作成
+    body.position.copy(mesh.position);//物理用オブジェクトに表示用オブジェクトの位置をコピー
+    
+    world.addBody(body);
+    return {mesh,body};
+}
+// //カウンターの初期化
+let teddyBearCount = 0;
+let rabbitCount = 0;
+let pandaCount = 0;
+
+const update = () =>{
+    //クレーンの移動
+    if(status == "move"){//statusがmoveのとき
+        let [dx,dz]=[0.05,0.05];
+        if (dir == "x")[dx,dz] = [-0.1,0];
+        if (dir == "z")[dx,dz] = [0,-0.1];//クレーンの移動方向、速度をセット
+        if (dir == "back"){
+            if(crane.position.x > 16) dx = 0;//クレーンが戻るとき、壁に沿うようにする
+            if(crane.position.z > 16) dz = 0;
+            if((dx == 0)&&(dz == 0)) status = "open";
+        }
+        crane.position.x = Math.max(crane.position.x + dx,-22);
+        crane.position.z = Math.max(crane.position.z + dz,-22);//クレーンを動かす（最小座標は-22）
+    } else if(status == "down"){//statusがdownのとき
+        crane.position.y -= 0.1;
+        if (crane.position.y < -4) status = "close";//y座標が-5未満になるまでクレーンを下げる
+    } else if (status == "close"){//statusがcloseのとき
+        arm.forEach(a => a.mesh.rotation.z += Math.PI/360);//クレーンの腕を閉じる
+        if (arm[0].mesh.rotation.z > Math.PI/4) status = "up";
+    } else if (status == "up"){//statusがupのとき
+        crane.position.y += 0.1;
+        if(crane.position.y > 15) [status,dir] = ["move","back"];//y座標が15より大きくなるまでクレーンを上げる
+    } else if (status == "open"){//statusがopenのとき
+        arm.forEach(a => a.mesh.rotation.z -= Math.PI/360);//クレーンの腕を広げる
+        if (arm[0].mesh.rotation.z < 0){//腕が広がり切ったとき
+            status = "readyX";
+            document.getElementById("moveX").className = "red";
+            document.getElementById("moveZ").className = "blue";
+        }
+    }
+    for (let i = 0; i<3; i++){
+        const[p,q] = [new THREE.Vector3(),new THREE.Quaternion()];
+        arm[i].body.position.copy(arm[i].mesh.getWorldPosition(p));
+        arm[i].body.quaternion.copy(arm[i].mesh.getWorldQuaternion(q));
+        claw[i].body.position.copy(claw[i].mesh.getWorldPosition(p));
+        claw[i].body.quaternion.copy(claw[i].mesh.getWorldQuaternion(q));//表示用クレーンの腕とツメのワールド座標と回転速度を取得し、物理用ブロックにコピー
+    }
+
+
+    //ブロックの移動
+    for (let i=blocks.length-1; i>=0; i--){
+        blocks[i].mesh.position.copy(blocks[i].body.position);//物理用ブロックの位置と回転角度を、表示用ブロックにコピー
+        blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
+        if(blocks[i].mesh.position.y < -30) {//ブロックが穴に落ちたら
+            // 削除前に種類を確認
+            switch (blocks[i].value) {
+                case 'teddyBear':
+                document.getElementById('bear-row').appendChild(createBearIcon());
+                break;
+                case 'rabbit':
+                document.getElementById('rabbit-row').appendChild(createRabbitIcon());
+                break;
+                case 'panda':
+                document.getElementById('panda-row').appendChild(createPandaIcon());
+                break;
+            }
+            scene.remove(blocks[i].mesh);
+            world.removeBody(blocks[i].body);
+            blocks.splice(i,1);//ブロックを削除
+
+        }
+    }  
+
+    //更新
+    world.fixedStep();//物理ワールドを60分の1進める
+    renderer.render(scene,camera);//3D描画を行う
+    window.requestAnimationFrame(update);//アニメーションを行う
+}
+
+
+
+// くまのぬいぐるみを構成
+function createTeddyBear(x, y, z, size) {
+    const group = new THREE.Group();
+
+    // マテリアル
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xd3a26b });//茶色
+    const detailMaterial = new THREE.MeshStandardMaterial({ color: 0x5a5a5a }); // 鼻や目用
+
+    // クマの頭
+    const head = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), bodyMaterial);
+    head.scale.set(1.2, 1.2, 1);
+    head.position.set(0, 1.5, 0);
+    group.add(head);
+
+    // クマの耳
+    const ear1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    ear1.position.set(-1.1, 2.6, -0.2);
+    group.add(ear1);
+
+    const ear2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    ear2.position.set(1.1, 2.6, -0.2);
+    group.add(ear2);
+    
+    // クマの目
+    const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), detailMaterial);
+    eye1.position.set(-0.5, 1.8, 1.1);
+    group.add(eye1);
+
+    const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), detailMaterial);
+    eye2.position.set(0.5, 1.8, 1.1);
+    group.add(eye2);
+
+    // クマの体
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), bodyMaterial);
+    body.scale.set(1.5, 1.5, 1);
+    body.position.set(0, -1.0, 0);
+    group.add(body);
+
+    // クマの鼻
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), detailMaterial);
+    nose.position.set(0, 1.4, 1.2);
+    group.add(nose);
+
+    // クマの手
+    const hand1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    hand1.scale.set(1.5, 1, 1);
+    hand1.position.set(-1.7, -0.5, 0);
+    group.add(hand1);
+
+    const hand2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    hand2.scale.set(1.5, 1, 1);
+    hand2.position.set(1.7, -0.5, 0);
+    group.add(hand2);
+
+    // クマの足
+    const foot1 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), bodyMaterial);
+    foot1.position.set(-0.8, -2, 0.5);
+    group.add(foot1);
+
+    const foot2 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), bodyMaterial);
+    foot2.position.set(0.8, -2, 0.5);
+    group.add(foot2);
+
+    // クマのしっぽ
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.6, 32, 32), bodyMaterial);
+    tail.position.set(0, -1.7, -1.0);
+    group.add(tail);
+
+    group.position.set(x, y, z);
+    scene.add(group);
+    group.scale.set(2.5,2.5,2.5);
+
+
+    // 物理オブジェクト（仮想の直方体）
+    const bodyPhysics = new CANNON.Body({
+        mass: 50,
+        material: new CANNON.Material({
+            friction: 2.0,
+            restitution: 0.1,
+        }),
+        shape: new CANNON.Box(new CANNON.Vec3(size, size *1.5, size)),
+        position: new CANNON.Vec3(x, y, z),
+    });
+
+    bodyPhysics.quaternion.setFromEuler(
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    "XYZ"
+    );
+    world.addBody(bodyPhysics);
+    return { mesh: group ,body:bodyPhysics};
+}
+
+// うさぎのぬいぐるみを構成
+function createRabbit(x, y, z, size) {
+    const group = new THREE.Group();
+
+    // マテリアル
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xffc0cb });//ピンク色
+    const detailMaterial = new THREE.MeshStandardMaterial({ color: 0x5a5a5a }); // 鼻や目用
+
+    // ウサギの頭
+    const head = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), bodyMaterial);
+    head.position.set(0, 1.5, 0);
+    group.add(head);
+
+    // ウサギの耳
+    const ear1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    ear1.scale.set(0.8, 3, 1); // 耳を縦に長くして楕円形に
+    ear1.position.set(-0.6, 2.9, 0);
+    group.add(ear1);
+
+    const ear2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    ear2.scale.set(0.8, 3, 1); // 耳を縦に長くして楕円形に
+    ear2.position.set(0.6, 2.9, 0);
+    group.add(ear2);
+    
+    // ウサギの目
+    const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), detailMaterial);
+    eye1.position.set(-0.5, 1.8, 1.1);
+    group.add(eye1);
+
+    const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), detailMaterial);
+    eye2.position.set(0.5, 1.8, 1.1);
+    group.add(eye2);
+
+    // ウサギの体
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), bodyMaterial);
+    body.scale.set(1.2, 1.5, 1);
+    body.position.set(0, -1.1, 0);
+    group.add(body);
+
+    // ウサギの鼻
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), detailMaterial);
+    nose.position.set(0, 1.5, 1.2);
+    group.add(nose);
+
+    // ウサギの手
+    const hand1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    hand1.scale.set(1.5, 1, 1);
+    hand1.position.set(-1.7, -0.5, 0);
+    group.add(hand1);
+
+    const hand2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    hand2.scale.set(1.5, 1, 1);
+    hand2.position.set(1.7, -0.5, 0);
+    group.add(hand2);
+
+    // ウサギの足
+    const foot1 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), bodyMaterial);
+    foot1.position.set(-0.8, -2, 0.5);
+    group.add(foot1);
+
+    const foot2 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), bodyMaterial);
+    foot2.position.set(0.8, -2, 0.5);
+    group.add(foot2);
+
+    // ウサギのしっぽ
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.6, 32, 32), bodyMaterial);
+    tail.position.set(0, -1.7, -1.0);
+    group.add(tail);
+
+    group.position.set(x, y, z);
+    scene.add(group);
+    group.scale.set(2.5,2.5,2.5);
+
+    // 物理オブジェクト（仮想の直方体）
+    const bodyPhysics = new CANNON.Body({
+        mass: 50,
+        material: new CANNON.Material({
+            friction: 2,
+            restitution: 0.1,
+        }),
+        shape: new CANNON.Box(new CANNON.Vec3(size  , size * 1.5, size)),
+        position: new CANNON.Vec3(x, y, z),
+    });
+    bodyPhysics.quaternion.setFromEuler(
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    "XYZ"
+    );
+    world.addBody(bodyPhysics);
+
+    return { mesh: group ,body:bodyPhysics};
+}
+// パンダのぬいぐるみを構成
+function createPanda(x, y, z, size) {
+    const group = new THREE.Group();
+
+    // マテリアル（白と黒）
+    const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff }); // 白色
+    const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 }); // 黒色
+
+    // パンダの頭
+    const head = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), whiteMaterial);
+    head.scale.set(1.2, 1.2, 1);
+    head.position.set(0, 1.5, 0);
+    group.add(head);
+
+    // パンダの体
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), whiteMaterial);
+    body.scale.set(1.5, 1.5, 1);
+    body.position.set(0, -1.0, 0);
+    group.add(body);
+
+    // パンダの耳（黒くて丸い）
+    const ear1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), blackMaterial);
+    ear1.position.set(-1.1, 2.6, -0.2);
+    group.add(ear1);
+
+    const ear2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), blackMaterial);
+    ear2.position.set(1.1, 2.6, -0.2);
+    group.add(ear2);
+
+    // パンダの目の模様（楕円形）
+    const eyePatch1 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), blackMaterial);
+    eyePatch1.scale.set(1.5, 1.1, 0.6);
+    eyePatch1.position.set(-0.4, 1.7, 1);
+    group.add(eyePatch1);
+
+    const eyePatch2 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), blackMaterial);
+    eyePatch2.scale.set(1.5, 1.1, 0.6);
+    eyePatch2.position.set(0.4, 1.7, 1);
+    group.add(eyePatch2);
+
+    // パンダの目
+    const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), whiteMaterial);
+    eye1.position.set(-0.4, 1.7, 1.1);
+    group.add(eye1);
+
+    const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), whiteMaterial);
+    eye2.position.set(0.4, 1.7, 1.1);
+    group.add(eye2);
+
+    // パンダの鼻
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), blackMaterial);
+    nose.position.set(0, 1.3, 1.2);
+    group.add(nose);
+
+    // パンダの手（黒）
+    const hand1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), blackMaterial);
+    hand1.scale.set(1.5, 1, 1);
+    hand1.position.set(-1.7, -0.4, 0);
+    group.add(hand1);
+
+    const hand2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), blackMaterial);
+    hand2.scale.set(1.5, 1, 1);
+    hand2.position.set(1.7, -0.4, 0);
+    group.add(hand2);
+
+    // パンダの足（黒）
+    const foot1 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), blackMaterial);
+    foot1.position.set(-0.8, -2, 0.5);
+    group.add(foot1);
+
+    const foot2 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), blackMaterial);
+    foot2.position.set(0.8, -2, 0.5);
+    group.add(foot2);
+
+    // パンダのしっぽ（黒）
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.6, 32, 32), blackMaterial);
+    tail.position.set(0, -1.7, -1.0);
+    group.add(tail);
+
+    group.position.set(x, y, z);
+    scene.add(group);
+    group.scale.set(2.5,2.5,2.5);
+
+    // 物理オブジェクト（仮想の直方体）
+    const bodyPhysics = new CANNON.Body({
+        mass: 50,
+        material: new CANNON.Material({
+            friction: 2.0,
+            restitution: 0.1,
+        }),
+        shape: new CANNON.Box(new CANNON.Vec3(size  , size * 1.5, size)),
+        position: new CANNON.Vec3(x, y, z),
+    });
+    bodyPhysics.quaternion.setFromEuler(
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    "XYZ"
+    );
+    world.addBody(bodyPhysics);
+
+    return { mesh: group ,body:bodyPhysics};
+}
+</script>
+<style>
+body {
+    caret-color: transparent;
+}
+
+
+button{
+    font-size: 30px;/*文字の大きさ*/
+    width: 60px;/*サイズ　幅*/
+    height: 60px;/*サイズ　高さ*/
+    border-radius: 50%;/*枠線を円形にする*/
+}
+
+.red {
+    animation: blinkBackground 1s infinite;
+}
+@keyframes blinkBackground {
+      0%, 100% {
+        background-color: white;
+      }
+      50% {
+        background-color: #FF99CC;
+      }/*redクラスの背景色　ピンク*/
+    }
+.blue {background-color: #99ccFF;}/*blueクラスの背景色　灰水色*/
+.gray {background-color: lightgray;}/*grayクラスの背景色　灰水色*/
+</style>
+
+</head>
+<body>
+<div id ="renderArea"></div><!--3D描画エリア-->
+<hr>
+<button id = "moveX" class = "red">1</button><!--[1]ボタン（横移動）-->
+<button id = "moveZ" class = "blue">2</button><!--[2]ボタン（縦移動）-->
+<hr>
+<style>
+    .prizeArea {
+      display: flex;
+      justify-content: center;
+      align-items: left;
+      flex-direction: column; /* 追加: 縦方向に並べる */
+      height: 400px;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: hsl(50, 100%, 80%); 
+    }
+    .plush-row {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px; /* 行間のスペース */
+    }
+    .plush {
+      position: relative;
+      width: 60px; 
+      height: 80px; 
+    }
+  
+    /* Head */
+    .head {
+      position: absolute;
+      top: -30px; 
+      left: 50%;
+      transform: translateX(-50%);
+      width: 50px;  
+      height: 47.5px; 
+      background-color: inherit;
+      border-radius: 50%;
+    }
+  
+    /* Ears */
+    .ear {
+      position: absolute;
+      top: -10px; 
+      width: 20px;  
+      height: 20px; 
+      background-color: inherit;
+      border-radius: 50%;
+    }
+    .ear.left {
+      left: 1px;
+    }
+    .ear.right {
+      right: 1px;
+    }
+    .panda .ear {
+      background-color: #000;
+    }
+  
+    /* Eyes */
+    .eye {
+      position: absolute;
+      top: 15px;  
+      width: 7.5px;  
+      height: 7.5px; 
+      background-color: #5a5a5a;
+      border-radius: 50%;
+    }
+    .eye.left {
+      left: 10px;  
+    }
+    .eye.right {
+      right: 10px; 
+    }
+  
+    /* Nose */
+    .nose {
+      position: absolute;
+      top: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 9px;
+      height: 6.5px;
+      background-color: #5a5a5a;
+      border-radius: 50%;
+    }
+  
+    /* Bear Face */
+    .bear .head {
+      background-color: #d3a26b;
+    }
+  
+    /* Rabbit Face */
+    .rabbit .head {
+      background-color: #ffc0cb;
+    }
+  
+    /* Panda Face */
+    .panda .head {
+      background-color: #ffffff;
+    }
+</style>
+</head>
+<body>
+<div class = "prizeArea">
+  <!-- Bear Face Row -->
+  <div class="plush-row" id="bear-row"></div>
+
+  <!-- Rabbit Face Row -->
+  <div class="plush-row" id="rabbit-row"></div>
+
+  <!-- Panda Face Row -->
+  <div class="plush-row" id="panda-row"></div>
+</div>
+
+<script>
+  function createBearIcon() {
+    const bear = document.createElement('div');
+    bear.classList.add('plush', 'bear');
+    
+    const head = document.createElement('div');
+    head.classList.add('head');
+    
+    const leftEar = document.createElement('div');
+    leftEar.classList.add('ear', 'left');
+    const rightEar = document.createElement('div');
+    rightEar.classList.add('ear', 'right');
+    
+    const leftEye = document.createElement('div');
+    leftEye.classList.add('eye', 'left');
+    const rightEye = document.createElement('div');
+    rightEye.classList.add('eye', 'right');
+    
+    const nose = document.createElement('div');
+    nose.classList.add('nose');
+    
+    head.appendChild(leftEar);
+    head.appendChild(rightEar);
+    head.appendChild(leftEye);
+    head.appendChild(rightEye);
+    head.appendChild(nose);
+    
+    bear.appendChild(head);
+    return bear;
+  }
+
+  function createRabbitIcon() {
+    const rabbit = document.createElement('div');
+    rabbit.classList.add('plush', 'rabbit');
+    
+    const head = document.createElement('div');
+    head.classList.add('head');
+    
+    const leftEar = document.createElement('div');
+    leftEar.classList.add('ear', 'left');
+    leftEar.style.height = '45px';
+    leftEar.style.width = '17.5px';
+    leftEar.style.top = '-25px';
+    
+    const rightEar = document.createElement('div');
+    rightEar.classList.add('ear', 'right');
+    rightEar.style.height = '45px';
+    rightEar.style.width = '17.5px';
+    rightEar.style.top = '-25px';
+    
+    const leftEye = document.createElement('div');
+    leftEye.classList.add('eye', 'left');
+    const rightEye = document.createElement('div');
+    rightEye.classList.add('eye', 'right');
+    
+    const nose = document.createElement('div');
+    nose.classList.add('nose');
+    
+    head.appendChild(leftEar);
+    head.appendChild(rightEar);
+    head.appendChild(leftEye);
+    head.appendChild(rightEye);
+    head.appendChild(nose);
+    
+    rabbit.appendChild(head);
+    return rabbit;
+  }
+
+  function createPandaIcon() {
+    const panda = document.createElement('div');
+    panda.classList.add('plush', 'panda');
+    
+    const head = document.createElement('div');
+    head.classList.add('head');
+    
+    const leftEar = document.createElement('div');
+    leftEar.classList.add('ear', 'left');
+    const rightEar = document.createElement('div');
+    rightEar.classList.add('ear', 'right');
+    
+    const leftEye = document.createElement('div');
+    leftEye.classList.add('eye', 'left');
+    const rightEye = document.createElement('div');
+    rightEye.classList.add('eye', 'right');
+    
+    const nose = document.createElement('div');
+    nose.classList.add('nose');
+    
+    head.appendChild(leftEar);
+    head.appendChild(rightEar);
+    head.appendChild(leftEye);
+    head.appendChild(rightEye);
+    head.appendChild(nose);
+    
+    panda.appendChild(head);
+    return panda;
+  }
+</script>
+</body>
+</html>
