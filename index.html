@@ -24,7 +24,7 @@ const data = [[-20,-20,10],[-10,-20,10],[0,-20,10],[10,-20,10],[20,-20,10],
     [-20,-10,10],[-10,-10,10],[0,-10,10],[10,-10,10],[20,-10,10],
     [-20,0,10],[-10,0,10],[0,0,10],[10,0,10],[20,0,10],
     [-20,10,10],[-10,10,10],[0,10,10],
-    [-20,20,10],[-10,20,10],[0,20,10],
+    [-20,20,10],[-10,20,10],
 ];
 // 配列をシャッフルする関数（Fisher-Yatesアルゴリズム）
 function shuffleArray(data) {
@@ -81,24 +81,31 @@ window.onload = () => {
     }
 
     //くまのぬいぐるみ
-    for (let i = 0; i < shuffledData.length/3; i++) {
+    for (let i = 0; i < shuffledData.length/4; i++) {
     const [x, z, w] = shuffledData[i];
-    const teddyBear = createTeddyBear(x, w / 2, z, 1.5); // createTeddyBear の返り値
+    const teddyBear = createTeddyBear(x, w , z, 1.5); // createTeddyBear の返り値
     blocks.push({ ...teddyBear, value: 'teddyBear' });
     }
 
-    //うさぎのぬいぐるみ
-    for (let i = shuffledData.length/3; i < shuffledData.length*2/3; i++) {
+    //わさびのぬいぐるみ
+    for (let i = shuffledData.length/4 ; i < shuffledData.length/2; i++) {
     const [x, z, w] = shuffledData[i];
-    const rabbit = createRabbit(x, w / 2, z, 1.5); // createRabbit の返り値
+    const wasabi = createWasabi(x, w , z, 1.5); // createWasabi の返り値
+    blocks.push({ ...wasabi, value: 'wasabi' });
+    }
+
+    //うさぎのぬいぐるみ
+    for (let i = shuffledData.length/2; i < shuffledData.length*3/4; i++) {
+    const [x, z, w] = shuffledData[i];
+    const rabbit = createRabbit(x, w , z, 1.5); // createRabbit の返り値
     blocks.push({ ...rabbit, value: 'rabbit' });
     }
     
     
     //パンダのぬいぐるみ
-    for (let i = shuffledData.length*2/3; i < shuffledData.length; i++) {
+    for (let i = shuffledData.length*3/4; i < shuffledData.length; i++) {
     const [x, z, w] = shuffledData[i];
-    const panda = createPanda(x, w / 2, z, 1.5); // createPanda の返り値
+    const panda = createPanda(x, w , z, 1.5); // createPanda の返り値
     blocks.push({ ...panda, value: 'panda' });
     }
 
@@ -190,7 +197,7 @@ const update = () =>{
         blocks[i].mesh.position.copy(blocks[i].body.position);//物理用ブロックの位置と回転角度を、表示用ブロックにコピー
         blocks[i].mesh.quaternion.copy(blocks[i].body.quaternion);
         if(blocks[i].mesh.position.y < -30) {//ブロックが穴に落ちたら
-            // 削除前に種類を確認
+            //削除前に種類を確認
             switch (blocks[i].value) {
                 case 'teddyBear':
                 document.getElementById('bear-row').appendChild(createBearIcon());
@@ -200,6 +207,9 @@ const update = () =>{
                 break;
                 case 'panda':
                 document.getElementById('panda-row').appendChild(createPandaIcon());
+                break;
+                case 'wasabi':
+                document.getElementById('wasabi-row').appendChild(createWasabiIcon());
                 break;
             }
             scene.remove(blocks[i].mesh);
@@ -284,6 +294,133 @@ function createTeddyBear(x, y, z, size) {
     const tail = new THREE.Mesh(new THREE.SphereGeometry(0.6, 32, 32), bodyMaterial);
     tail.position.set(0, -1.7, -1.0);
     group.add(tail);
+
+    group.position.set(x, y, z);
+    scene.add(group);
+    group.scale.set(2.5,2.5,2.5);
+
+
+    // 物理オブジェクト（仮想の直方体）
+    const bodyPhysics = new CANNON.Body({
+        mass: 50,
+        material: new CANNON.Material({
+            friction: 2.0,
+            restitution: 0.1,
+        }),
+        shape: new CANNON.Box(new CANNON.Vec3(size, size *1.5, size)),
+        position: new CANNON.Vec3(x, y, z),
+    });
+
+    bodyPhysics.quaternion.setFromEuler(
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    "XYZ"
+    );
+    world.addBody(bodyPhysics);
+    return { mesh: group ,body:bodyPhysics};
+}
+
+// わさびのぬいぐるみを構成
+function createWasabi(x, y, z, size) {
+    const group = new THREE.Group();
+
+    // マテリアル（ベージュ）
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xebdcc8 });
+    const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 }); // 鼻や目用
+    const detailMaterial = new THREE.MeshStandardMaterial({ color: 0x3a3a3a }); // 鼻や目用
+
+    // わさびの頭
+    const head = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), bodyMaterial);
+    head.scale.set(1.2, 1.2, 1);
+    head.position.set(0, 1.5, 0);
+    group.add(head);
+
+    // わさびの体
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1.2, 32, 32), bodyMaterial);
+    body.scale.set(1.4, 1.5, 1);
+    body.position.set(0, -1.2, 0);
+    group.add(body);
+
+    // わさびの耳
+    const ear1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), detailMaterial);
+    ear1.scale.set(0.7, 1.6, 0.7);
+    ear1.position.set(-1.2, 2.1, 0.6);
+    ear1.rotation.z = Math.PI / 1.4; // 下方向に回転
+    group.add(ear1);
+
+    const ear2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), detailMaterial);
+    ear2.scale.set(0.7, 1.6, 0.7);
+    ear2.position.set(1.2, 2.1, 0.6);
+    ear2.rotation.z = Math.PI /0.78; // 下方向に回転
+    group.add(ear2);
+
+    // わさびの目
+    const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), blackMaterial);
+    eye1.scale.set(1.5, 1.3, 1.4);
+    eye1.position.set(-0.6, 1.35, 1.2);
+    group.add(eye1);
+
+    const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), blackMaterial);
+    eye2.scale.set(1.5, 1.3, 1.4);
+    eye2.position.set(0.6, 1.35, 1.2);
+    group.add(eye2);
+
+    // わさびの目の模様（楕円形）
+    const eyePatch1 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), detailMaterial);
+    eyePatch1.scale.set(1.5, 1.1, 0.9);
+    eyePatch1.position.set(-0.6, 1.5, 1);
+    group.add(eyePatch1);
+
+    const eyePatch2 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), detailMaterial);
+    eyePatch2.scale.set(1.5, 1.1, 0.9);
+    eyePatch2.position.set(0.6, 1.5, 1);
+    group.add(eyePatch2);
+
+    // わさびの鼻
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), blackMaterial);
+    nose.scale.set(1.5, 1.0, 1);
+    nose.position.set(0, 1.1, 1.5);
+    group.add(nose);
+
+    const nose1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), detailMaterial);
+    nose1.scale.set(0.6, 0.9, 0.8);
+    nose1.position.set(-0.4, 0.9, 1.2);
+    nose1.rotation.z = Math.PI / 1.5; // 下方向に回転
+    group.add(nose1);
+
+    const nose2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), detailMaterial);
+    nose2.scale.set(0.6, 0.9, 0.8);
+    nose2.position.set(0.4, 0.9, 1.2);
+    nose2.rotation.z = Math.PI / 0.75; // 下方向に回転
+    group.add(nose2);
+
+
+
+    // わさびの手
+    const hand1 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    hand1.scale.set(1.5, 1, 1);
+    hand1.position.set(-1.7, -0.5, 0);
+    group.add(hand1);
+
+    const hand2 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), bodyMaterial);
+    hand2.scale.set(1.5, 1, 1);
+    hand2.position.set(1.7, -0.5, 0);
+    group.add(hand2);
+
+    // わさびの足
+    const foot1 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), bodyMaterial);
+    foot1.position.set(-0.8, -2, 0.5);
+    group.add(foot1);
+
+    // わさびのしっぽ
+    const tail = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), bodyMaterial);
+    tail.position.set(0, -1.7, -1.0);
+    group.add(tail);
+
+    const foot2 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), bodyMaterial);
+    foot2.position.set(0.8, -2, 0.5);
+    group.add(foot2);
 
     group.position.set(x, y, z);
     scene.add(group);
@@ -519,6 +656,7 @@ button{
     width: 60px;/*サイズ　幅*/
     height: 60px;/*サイズ　高さ*/
     border-radius: 50%;/*枠線を円形にする*/
+    margin:10px;
 }
 
 .red {
@@ -539,216 +677,319 @@ button{
 </head>
 <body>
 <div id ="renderArea"></div><!--3D描画エリア-->
-<hr>
 <button id = "moveX" class = "red">1</button><!--[1]ボタン（横移動）-->
 <button id = "moveZ" class = "blue">2</button><!--[2]ボタン（縦移動）-->
-<hr>
 <style>
-    .prizeArea {
-      display: flex;
-      justify-content: center;
-      align-items: left;
-      flex-direction: column; /* 追加: 縦方向に並べる */
-      height: 400px;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: hsl(50, 100%, 80%); 
-    }
-    .plush-row {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 20px; /* 行間のスペース */
-    }
-    .plush {
-      position: relative;
-      width: 60px; 
-      height: 80px; 
-    }
-  
-    /* Head */
-    .head {
-      position: absolute;
-      top: -30px; 
-      left: 50%;
-      transform: translateX(-50%);
-      width: 50px;  
-      height: 47.5px; 
-      background-color: inherit;
-      border-radius: 50%;
-    }
-  
-    /* Ears */
-    .ear {
-      position: absolute;
-      top: -10px; 
-      width: 20px;  
-      height: 20px; 
-      background-color: inherit;
-      border-radius: 50%;
-    }
-    .ear.left {
-      left: 1px;
-    }
-    .ear.right {
-      right: 1px;
-    }
-    .panda .ear {
-      background-color: #000;
-    }
-  
-    /* Eyes */
-    .eye {
-      position: absolute;
-      top: 15px;  
-      width: 7.5px;  
-      height: 7.5px; 
-      background-color: #5a5a5a;
-      border-radius: 50%;
-    }
-    .eye.left {
-      left: 10px;  
-    }
-    .eye.right {
-      right: 10px; 
-    }
-  
-    /* Nose */
-    .nose {
-      position: absolute;
-      top: 25px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 9px;
-      height: 6.5px;
-      background-color: #5a5a5a;
-      border-radius: 50%;
-    }
-  
-    /* Bear Face */
-    .bear .head {
-      background-color: #d3a26b;
-    }
-  
-    /* Rabbit Face */
-    .rabbit .head {
-      background-color: #ffc0cb;
-    }
-  
-    /* Panda Face */
-    .panda .head {
-      background-color: #ffffff;
-    }
+  .prizeArea {
+    display: flex;
+    justify-content: center;
+    align-items: left;
+    flex-direction: column; /* 追加: 縦方向に並べる */
+    height: 400px;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: hsl(50, 100%, 80%); 
+  }
+  .plush-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px; /* 行間のスペース */
+  }
+  .plush {
+    position: relative;
+    top:60px;
+    width: 60px; 
+    height: 80px; 
+    margin-left: 10px;
+  }
+
+  /* Head */
+  .head {
+    position: absolute;
+    top: -30px; 
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;  
+    height: 46px; 
+    background-color: inherit;
+    border-radius: 50%;
+  }
+
+  /* Ears */
+  .ear {
+    position: absolute;
+    top: -7px; 
+    width: 20px;  
+    height: 20px; 
+    background-color: inherit;
+    border-radius: 50%;
+  }
+  .ear.left {
+    left: -1px;
+  }
+  .ear.right {
+    right: -1px;
+  }
+  .panda .ear {
+    background-color: #000;
+  }
+
+  .wasabi .ear {
+    background-color: #3a3a3a;
+  }
+
+  /* Eyes */
+  .eye {
+    position: absolute;
+    top: 17px;  
+    width: 7.5px;  
+    height: 7.5px; 
+    background-color: #000;
+    border-radius: 50%;
+  }
+  .eye.left {
+    left: 10px;  
+  }
+  .eye.right {
+    right: 10px; 
+  }
+
+  /* Nose */
+  .nose {
+    position: absolute;
+    top: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 9px;
+    height: 6.5px;
+    background-color: #000;
+    border-radius: 50%;
+  }
+
+  /* Bear Face */
+  .bear .head {
+    background-color: #d3a26b;
+  }
+
+  /* Rabbit Face */
+  .rabbit .head {
+    background-color: #ffc0cb;
+  }
+
+  /* Panda Face */
+  .panda .head {
+    background-color: #ffffff;
+  }
+
+  /* Wasabi Face */
+   .wasabi .head {
+    background-color: #ebdcc8;
+  }
 </style>
 </head>
 <body>
 <div class = "prizeArea">
-  <!-- Bear Face Row -->
-  <div class="plush-row" id="bear-row"></div>
+<!-- Bear Face Row -->
+<div class="plush-row" id="bear-row"></div>
 
-  <!-- Rabbit Face Row -->
-  <div class="plush-row" id="rabbit-row"></div>
+<!-- Rabbit Face Row -->
+<div class="plush-row" id="rabbit-row"></div>
 
-  <!-- Panda Face Row -->
-  <div class="plush-row" id="panda-row"></div>
+<!-- Panda Face Row -->
+<div class="plush-row" id="panda-row"></div>
+
+<!-- Wasabi Face Row -->
+<div class="plush-row" id="wasabi-row"></div>
 </div>
 
 <script>
-  function createBearIcon() {
-    const bear = document.createElement('div');
-    bear.classList.add('plush', 'bear');
-    
-    const head = document.createElement('div');
-    head.classList.add('head');
-    
-    const leftEar = document.createElement('div');
-    leftEar.classList.add('ear', 'left');
-    const rightEar = document.createElement('div');
-    rightEar.classList.add('ear', 'right');
-    
-    const leftEye = document.createElement('div');
-    leftEye.classList.add('eye', 'left');
-    const rightEye = document.createElement('div');
-    rightEye.classList.add('eye', 'right');
-    
-    const nose = document.createElement('div');
-    nose.classList.add('nose');
-    
-    head.appendChild(leftEar);
-    head.appendChild(rightEar);
-    head.appendChild(leftEye);
-    head.appendChild(rightEye);
-    head.appendChild(nose);
-    
-    bear.appendChild(head);
-    return bear;
-  }
+function createBearIcon() {
+  const bear = document.createElement('div');
+  bear.classList.add('plush', 'bear');
+  
+  const head = document.createElement('div');
+  head.classList.add('head');
+  
+  const leftEar = document.createElement('div');
+  leftEar.classList.add('ear', 'left');
+  const rightEar = document.createElement('div');
+  rightEar.classList.add('ear', 'right');
+  
+  const leftEye = document.createElement('div');
+  leftEye.classList.add('eye', 'left');
+  const rightEye = document.createElement('div');
+  rightEye.classList.add('eye', 'right');
+  
+  const nose = document.createElement('div');
+  nose.classList.add('nose');
+  
+  head.appendChild(leftEar);
+  head.appendChild(rightEar);
+  head.appendChild(leftEye);
+  head.appendChild(rightEye);
+  head.appendChild(nose);
+  
+  bear.appendChild(head);
+  return bear;
+}
 
-  function createRabbitIcon() {
-    const rabbit = document.createElement('div');
-    rabbit.classList.add('plush', 'rabbit');
-    
-    const head = document.createElement('div');
-    head.classList.add('head');
-    
-    const leftEar = document.createElement('div');
-    leftEar.classList.add('ear', 'left');
-    leftEar.style.height = '45px';
-    leftEar.style.width = '17.5px';
-    leftEar.style.top = '-25px';
-    
-    const rightEar = document.createElement('div');
-    rightEar.classList.add('ear', 'right');
-    rightEar.style.height = '45px';
-    rightEar.style.width = '17.5px';
-    rightEar.style.top = '-25px';
-    
-    const leftEye = document.createElement('div');
-    leftEye.classList.add('eye', 'left');
-    const rightEye = document.createElement('div');
-    rightEye.classList.add('eye', 'right');
-    
-    const nose = document.createElement('div');
-    nose.classList.add('nose');
-    
-    head.appendChild(leftEar);
-    head.appendChild(rightEar);
-    head.appendChild(leftEye);
-    head.appendChild(rightEye);
-    head.appendChild(nose);
-    
-    rabbit.appendChild(head);
-    return rabbit;
-  }
+function createRabbitIcon() {
+  const rabbit = document.createElement('div');
+  rabbit.classList.add('plush', 'rabbit');
+  
+  const head = document.createElement('div');
+  head.classList.add('head');
+  
+  const leftEar = document.createElement('div');
+  leftEar.classList.add('ear', 'left');
+  leftEar.style.height = '45px';
+  leftEar.style.width = '17.5px';
+  leftEar.style.top = '-25px';
+  
+  const rightEar = document.createElement('div');
+  rightEar.classList.add('ear', 'right');
+  rightEar.style.height = '45px';
+  rightEar.style.width = '17.5px';
+  rightEar.style.top = '-25px';
+  
+  const leftEye = document.createElement('div');
+  leftEye.classList.add('eye', 'left');
+  const rightEye = document.createElement('div');
+  rightEye.classList.add('eye', 'right');
+  
+  const nose = document.createElement('div');
+  nose.classList.add('nose');
+  
+  head.appendChild(leftEar);
+  head.appendChild(rightEar);
+  head.appendChild(leftEye);
+  head.appendChild(rightEye);
+  head.appendChild(nose);
+  
+  rabbit.appendChild(head);
+  return rabbit;
+}
 
-  function createPandaIcon() {
-    const panda = document.createElement('div');
-    panda.classList.add('plush', 'panda');
-    
-    const head = document.createElement('div');
-    head.classList.add('head');
-    
-    const leftEar = document.createElement('div');
-    leftEar.classList.add('ear', 'left');
-    const rightEar = document.createElement('div');
-    rightEar.classList.add('ear', 'right');
-    
-    const leftEye = document.createElement('div');
-    leftEye.classList.add('eye', 'left');
-    const rightEye = document.createElement('div');
-    rightEye.classList.add('eye', 'right');
-    
-    const nose = document.createElement('div');
-    nose.classList.add('nose');
-    
-    head.appendChild(leftEar);
-    head.appendChild(rightEar);
-    head.appendChild(leftEye);
-    head.appendChild(rightEye);
-    head.appendChild(nose);
-    
-    panda.appendChild(head);
-    return panda;
-  }
+function createPandaIcon() {
+  const panda = document.createElement('div');
+  panda.classList.add('plush', 'panda');
+  
+  const head = document.createElement('div');
+  head.classList.add('head');
+  
+  const leftEar = document.createElement('div');
+  leftEar.classList.add('ear', 'left');
+  const rightEar = document.createElement('div');
+  rightEar.classList.add('ear', 'right');
+  
+  const leftEye = document.createElement('div');
+  leftEye.classList.add('eye', 'left');
+  const rightEye = document.createElement('div');
+  rightEye.classList.add('eye', 'right');
+  
+  const nose = document.createElement('div');
+  nose.classList.add('nose');
+  
+  head.appendChild(leftEar);
+  head.appendChild(rightEar);
+  head.appendChild(leftEye);
+  head.appendChild(rightEye);
+  head.appendChild(nose);
+  
+  panda.appendChild(head);
+  return panda;
+}
+
+function createWasabiIcon() {
+  const wasabi = document.createElement('div');
+  wasabi.classList.add('plush', 'wasabi');
+  
+  const head = document.createElement('div');
+  head.classList.add('head');
+
+  // 左耳 (ハの字左上)
+  const leftEar = document.createElement('div');
+  leftEar.classList.add('ear', 'left');
+  leftEar.style.height = '22px';
+  leftEar.style.width = '13px';
+  leftEar.style.top = '3px';
+  leftEar.style.left = '-6px'; // 耳を外側に配置
+  leftEar.style.transform = 'rotate(35deg)'; // ハの字角度
+
+  // 右耳 (ハの字右上)
+  const rightEar = document.createElement('div');
+  rightEar.classList.add('ear', 'right');
+  rightEar.style.height = '22px';
+  rightEar.style.width = '13px';
+  rightEar.style.top = '3px';
+  rightEar.style.right = '-6px'; // 耳を外側に配置
+  rightEar.style.transform = 'rotate(-35deg)'; // ハの字角度
+
+  // 左目の模様
+  const leftEyePatch = document.createElement('div');
+  leftEyePatch.classList.add('eye-patch', 'left');
+  leftEyePatch.style.position = 'absolute';
+  leftEyePatch.style.top = '15px';
+  leftEyePatch.style.left = '4.5px';
+  leftEyePatch.style.width = '16px';
+  leftEyePatch.style.height = '12px';
+  leftEyePatch.style.backgroundColor = '#3a3a3a';
+  leftEyePatch.style.borderRadius = '50%';
+  leftEyePatch.style.transform = 'rotate(-15deg)'; // ハの字角度
+
+  // 右目の模様
+  const rightEyePatch = document.createElement('div');
+  rightEyePatch.classList.add('eye-patch', 'right');
+  rightEyePatch.style.position = 'absolute';
+  rightEyePatch.style.top = '15px';
+  rightEyePatch.style.right = '4.5px';
+  rightEyePatch.style.width = '16px';
+  rightEyePatch.style.height = '12px';
+  rightEyePatch.style.backgroundColor = '#3a3a3a';
+  rightEyePatch.style.borderRadius = '50%';
+  rightEyePatch.style.transform = 'rotate(15deg)'; // ハの字角度
+
+  // 左目
+  const leftEye = document.createElement('div');
+  leftEye.classList.add('eye', 'left');
+  const rightEye = document.createElement('div');
+  rightEye.classList.add('eye', 'right');
+
+  // 鼻
+  const nose = document.createElement('div');
+  nose.classList.add('nose');
+
+  // 左鼻 (ハの字左上)
+  const leftNose = document.createElement('div');
+  leftNose.classList.add('ear', 'left');
+  leftNose.style.height = '14px';
+  leftNose.style.width = '9px';
+  leftNose.style.top = '28px';
+  leftNose.style.left = '15px'; // 耳を外側に配置
+  leftNose.style.transform = 'rotate(60deg)'; // ハの字角度
+
+  // 右鼻 (ハの字右上)
+  const rightNose = document.createElement('div');
+  rightNose.classList.add('ear', 'right');
+  rightNose.style.height = '14px';
+  rightNose.style.width = '9px';
+  rightNose.style.top = '28px';
+  rightNose.style.right = '15px'; // 耳を外側に配置
+  rightNose.style.transform = 'rotate(-60deg)'; // ハの字角度
+
+  head.appendChild(leftEar);
+  head.appendChild(rightEar);
+  head.appendChild(leftEyePatch);
+  head.appendChild(rightEyePatch);
+  head.appendChild(leftEye);
+  head.appendChild(rightEye);
+  head.appendChild(nose);
+  head.appendChild(leftNose);
+  head.appendChild(rightNose);
+
+  wasabi.appendChild(head);
+  return wasabi;
+}
 </script>
 </body>
 </html>
