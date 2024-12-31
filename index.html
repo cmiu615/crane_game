@@ -120,10 +120,10 @@ window.onload = () => {
             document.getElementById("moveZ").className = "red";//[2]ボタンをピンクにする
         }
     });
-    document.getElementById("moveZ").addEventListener("mousedown",() =>{//[2]ボタンを押したとき
+    document.getElementById("moveZ").addEventListener("touchstart",() =>{//[2]ボタンを押したとき
         if(status == "readyZ")[status,dir] = ["move","z"];
     });
-    document.getElementById("moveZ").addEventListener("mouseup",() =>{//[2]ボタンを放したとき
+    document.getElementById("moveZ").addEventListener("touchend",() =>{//[2]ボタンを放したとき
         if((status == "move")&&(dir == "z")){
             status = "down";
             document.getElementById("moveZ").className = "blue";//[2]ボタンを灰水色にする
