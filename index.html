@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
 <title>クレーンゲーム</title>
 <script type = "importmap">
     {
@@ -59,7 +59,7 @@ window.onload = () => {
     scene.add(light,ambientLight);
     //物理ワールド、壁、床
     world = new CANNON.World({gravity: new CANNON.Vec3(0,-20,0)});//物理ワールドを作成・重力の設定
-    createObject(-10,-20,0,40,11,60,"#FFFFFFFF");
+    createObject(-10,-20,0,40,11,60,"#FFFFFF");
     createObject(20,-20,-10,20,11,40,"#FFFFFF");//直方体の床
     createObject(0,5,-30.5,60,41,1,"#98fb98");//奥の壁を薄緑色の直方体として作成
     createObject(-30.5,5,0,1,41,60,"#FFFFFF",0.1);
@@ -108,27 +108,73 @@ window.onload = () => {
     const panda = createPanda(x, w , z, 1.5); // createPanda の返り値
     blocks.push({ ...panda, value: 'panda' });
     }
+    // ユーザーエージェントを取得
+    var userAgent = navigator.userAgent.toLowerCase();
+
+    // スマホかどうかを判定
+    var isSmartphone = /iphone|ipod|android.*mobile|windows.*phone|blackberry.*mobile/.test(userAgent);
+
+    // PCかどうかを判定
+    var isPC = !isSmartphone;
+
+    // タッチデバイスかPCかの判定
+    // const isTouchDevice = 'ontouchstart' in window;
+    // const startEvent = isTouchDevice ? "touchstart" : "mousedown";
+    // const endEvent = isTouchDevice ? "touchend" : "mouseup";
 
     //ボタンイベントの登録（クレーンの操作）
-    document.getElementById("moveX").addEventListener("mousedown",() => {//[1]ボタンを押したとき
-        if(status == "readyX") [status,dir] = ["move","x"];
-    });
-    document.getElementById("moveX").addEventListener("mouseup",() => {//[1]ボタンを放したとき
-        if((status == "move")&&(dir == "x")){//移動したなら
-            status = "readyZ";
-            document.getElementById("moveX").className = "blue";//[1]ボタンを灰水色にする
-            document.getElementById("moveZ").className = "red";//[2]ボタンをピンクにする
-        }
-    });
-    document.getElementById("moveZ").addEventListener("touchstart",() =>{//[2]ボタンを押したとき
-        if(status == "readyZ")[status,dir] = ["move","z"];
-    });
-    document.getElementById("moveZ").addEventListener("touchend",() =>{//[2]ボタンを放したとき
-        if((status == "move")&&(dir == "z")){
-            status = "down";
-            document.getElementById("moveZ").className = "blue";//[2]ボタンを灰水色にする
-        }
-    });
+    if (isPC) {
+        document.getElementById("moveX").addEventListener("mousedown",(event) => {//[1]ボタンを押したとき
+            event.preventDefault();  // イベントのデフォルト動作を防ぐ
+            if(status == "readyX") [status,dir] = ["move","x"];
+            });
+    
+        document.getElementById("moveX").addEventListener("mouseup",(event) => {//[1]ボタンを放したとき
+            event.preventDefault();  // イベントのデフォルト動作を防ぐ
+            if((status == "move")&&(dir == "x")){//移動したなら
+                status = "readyZ";
+                document.getElementById("moveX").className = "blue";//[1]ボタンを灰水色にする
+                document.getElementById("moveZ").className = "red";//[2]ボタンをピンクにする
+            }
+        });
+        document.getElementById("moveZ").addEventListener("mousedown",(event) =>{//[2]ボタンを押したとき
+            event.preventDefault();  // イベントのデフォルト動作を防ぐ
+            if(status == "readyZ")[status,dir] = ["move","z"];
+        });
+        document.getElementById("moveZ").addEventListener("mouseup",(event) =>{//[2]ボタンを放したとき
+            event.preventDefault();  // イベントのデフォルト動作を防ぐ
+            if((status == "move")&&(dir == "z")){
+                status = "down";
+                document.getElementById("moveZ").className = "blue";//[2]ボタンを灰水色にする
+            }
+        });
+    }
+    if (isSmartphone) {
+        document.getElementById("moveX").addEventListener("touchstart",(event) => {//[1]ボタンを押したとき
+            event.preventDefault();  // イベントのデフォルト動作を防ぐ
+            if(status == "readyX") [status,dir] = ["move","x"];
+            });
+    
+        document.getElementById("moveX").addEventListener("touchend",(event) => {//[1]ボタンを放したとき
+            event.preventDefault();  // イベントのデフォルト動作を防ぐ
+            if((status == "move")&&(dir == "x")){//移動したなら
+                status = "readyZ";
+                document.getElementById("moveX").className = "blue";//[1]ボタンを灰水色にする
+                document.getElementById("moveZ").className = "red";//[2]ボタンをピンクにする
+            }
+        });
+        document.getElementById("moveZ").addEventListener("touchstart",(event) =>{//[2]ボタンを押したとき
+            event.preventDefault();  // イベントのデフォルト動作を防ぐ
+            if(status == "readyZ")[status,dir] = ["move","z"];
+        });
+        document.getElementById("moveZ").addEventListener("touchend",(event) =>{//[2]ボタンを放したとき
+            event.preventDefault();  // イベントのデフォルト動作を防ぐ
+            if((status == "move")&&(dir == "z")){
+                status = "down";
+                document.getElementById("moveZ").className = "blue";//[2]ボタンを灰水色にする
+            }
+        });
+    }
     update();
 }
 
@@ -657,7 +703,7 @@ button{
     height: 60px;/*サイズ　高さ*/
     border-radius: 50%;/*枠線を円形にする*/
     margin:10px;
-    -webkit-user-select:none; // テキスト長押しの選択ボックスを無効化
+    -webkit-user-select:none; /*テキスト長押しの選択ボックスを無効化*/
 }
 
 .red {
