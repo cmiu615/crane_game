@@ -117,11 +117,6 @@ window.onload = () => {
     // PCかどうかを判定
     var isPC = !isSmartphone;
 
-    // タッチデバイスかPCかの判定
-    // const isTouchDevice = 'ontouchstart' in window;
-    // const startEvent = isTouchDevice ? "touchstart" : "mousedown";
-    // const endEvent = isTouchDevice ? "touchend" : "mouseup";
-
     //ボタンイベントの登録（クレーンの操作）
     if (isPC) {
         document.getElementById("moveX").addEventListener("mousedown",(event) => {//[1]ボタンを押したとき
@@ -261,7 +256,6 @@ const update = () =>{
             scene.remove(blocks[i].mesh);
             world.removeBody(blocks[i].body);
             blocks.splice(i,1);//ブロックを削除
-
         }
     }  
 
@@ -270,8 +264,36 @@ const update = () =>{
     renderer.render(scene,camera);//3D描画を行う
     window.requestAnimationFrame(update);//アニメーションを行う
 }
+// 並び替えボタンのクリックイベント
+document.getElementById("shuffleButton").addEventListener("click", () => {
+    shuffleBlocks();
+});
 
+const shuffleBlocks = () => {
+    // すべてのぬいぐるみの現在の座標を取得
+    const usedPositions = blocks.map(block => {
+        const { x, z, y } = block.mesh.position;
+        return [x.toFixed(1), z.toFixed(1), y.toFixed(1)];
+    });
 
+    // 再配置可能な座標を取得
+    const availablePositions = data.filter(([x, z, y]) => {
+        return !usedPositions.some(([ux, uz, uy]) => ux == x && uz == z && uy == y);
+    });
+
+    // 再配置
+    blocks.forEach(block => {
+        if (availablePositions.length > 0) {
+            // ランダムに座標を選択
+            const newIndex = Math.floor(Math.random() * availablePositions.length);
+            const [newX, newZ, newY] = availablePositions.splice(newIndex, 1)[0];
+
+            // ぬいぐるみの位置を変更
+            block.mesh.position.set(newX, newY, newZ);
+            block.body.position.set(newX, newY, newZ);
+        }
+    });
+};
 
 // くまのぬいぐるみを構成
 function createTeddyBear(x, y, z, size) {
@@ -358,9 +380,9 @@ function createTeddyBear(x, y, z, size) {
     });
 
     bodyPhysics.quaternion.setFromEuler(
-    Math.random() * Math.PI,
-    Math.random() * Math.PI,
-    Math.random() * Math.PI,
+    Math.random() * 2 * Math.PI,
+    Math.random() * 2 * Math.PI,
+    Math.random() * 2 * Math.PI,
     "XYZ"
     );
     world.addBody(bodyPhysics);
@@ -695,14 +717,22 @@ function createPanda(x, y, z, size) {
 body {
     caret-color: transparent;
 }
-
+button.gray{
+    display: inline-block;
+    text-align: center;
+    font-size: 50px;/*文字の大きさ*/
+    width: 300px;/*サイズ　幅*/
+    height: 100px;/*サイズ　高さ*/
+    border-radius: 100px;/*枠線を円形にする*/
+    margin:10px;
+}
 
 button{
-    font-size: 30px;/*文字の大きさ*/
-    width: 60px;/*サイズ　幅*/
-    height: 60px;/*サイズ　高さ*/
-    border-radius: 50%;/*枠線を円形にする*/
-    margin:10px;
+    font-size: 50px;/*文字の大きさ*/
+    width: 100px;/*サイズ　幅*/
+    height: 100px;/*サイズ　高さ*/
+    border-radius: 60%;/*枠線を円形にする*/
+    margin:30px;
     -webkit-user-select:none; /*テキスト長押しの選択ボックスを無効化*/
 }
 
@@ -726,6 +756,7 @@ button{
 <div id ="renderArea"></div><!--3D描画エリア-->
 <button id = "moveX" class = "red">1</button><!--[1]ボタン（横移動）-->
 <button id = "moveZ" class = "blue">2</button><!--[2]ボタン（縦移動）-->
+<button id = "shuffleButton" class = "gray">ならびかえ</button><!--並び変えボタン-->
 <style>
   .prizeArea {
     display: flex;
@@ -733,6 +764,7 @@ button{
     align-items: left;
     flex-direction: column; /* 追加: 縦方向に並べる */
     height: 400px;
+    width:800px;
     margin: 0;
     font-family: Arial, sans-serif;
     background-color: hsl(50, 100%, 80%); 
