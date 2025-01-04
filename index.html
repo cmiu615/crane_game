@@ -112,7 +112,7 @@ window.onload = () => {
     var userAgent = navigator.userAgent.toLowerCase();
 
     // スマホかどうかを判定
-    var isSmartphone = /iphone|ipod|android.*mobile|windows.*phone|blackberry.*mobile/.test(userAgent);
+    var isSmartphone = /iphone|ipod|ipad|android/.test(userAgent);
 
     // PCかどうかを判定
     var isPC = !isSmartphone;
